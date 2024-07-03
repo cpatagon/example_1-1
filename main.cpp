@@ -1,4 +1,4 @@
-/** Proyecto plubiometro**/
+/** Proyecto plubiometro 2**/
 
 #include "mbed.h"
 #include "arm_book_lib.h"
