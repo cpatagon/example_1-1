@@ -86,6 +86,7 @@ void accumulateRainfall() {
     }
 }
 
+// funcion que entrega la fecha y hora actual 
 const char* DateTimeNow() {
     time_t seconds = time(NULL);
     static char bufferTime[80];
@@ -93,11 +94,15 @@ const char* DateTimeNow() {
     return bufferTime;
 }
 
+// funcion que imprime cuando deteta una precipitacion 
 void printRain(const char* buffer) {
-    //printf("%s - Rain detected\n", buffer);
+    // Write the buffer content
     pc.write(buffer, strlen(buffer));
-    pc.write(" - Rain detected\r\n", 18);   
+    // Write the rain detected message
+    const char* message = " - Rain detected\r\n";
+    pc.write(message, strlen(message));
 }
+
 
 bool hasTimePassedMinutesRTC(int minutes) {
     static int lastMinute = -1;
