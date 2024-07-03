@@ -1,5 +1,9 @@
+/** Proyecto plubiometro**/
+
 #include "mbed.h"
 #include "arm_book_lib.h"
+
+
 
 #define TIME_INI  1593561600  // 1 de julio de 2020, 00:00:00
 #define BAUD_RATE 9600
