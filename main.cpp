@@ -1,23 +1,33 @@
 /** Proyecto plubiometro 2**/
 
+/** Proyecto plubiometro 2 **/
+
 #include "mbed.h"
 #include "arm_book_lib.h"
-
-
+//#include "weather_station.h"
 
 #define TIME_INI  1593561600  // 1 de julio de 2020, 00:00:00
 #define BAUD_RATE 9600
 #define DELAY_BETWEEN_TICK 500 // 500 ms
 #define SWITCH_TICK_RAIN BUTTON1
-#define RAINFALL_CHECK_INTERVAL 1 // in minute
+#define RAINFALL_CHECK_INTERVAL 1 // in minutes
 #define MM_PER_TICK 0.2f // 0.2 mm de agua por tick
 
-void printRain(const char* buffer);
-const char* DateTimeNow(void);
+// Sensores
+void initializeSensors();
+bool isRaining();
+
+// Análisis de Datos
+void analyzeRainfall();
 void accumulateRainfall();
 bool hasTimePassedMinutesRTC(int minutes);
-void printAccumulatedRainfall();
 
+// Actuación
+void actOnRainfall();
+void reportRainfall();
+void printRain(const char* buffer);
+const char* DateTimeNow(void);
+void printAccumulatedRainfall();
 
 BufferedSerial pc(USBTX, USBRX, BAUD_RATE);
 
@@ -30,32 +40,81 @@ int lastMinute = -1;
 
 int main()
 {
-    tickRain.mode(PullDown);
-    alarmLed = OFF;
-    tickLed = OFF;
-
-    // Configurar la fecha y hora inicial
-    set_time(TIME_INI); 
+    initializeSensors();
 
     while (true) {
-        if (tickRain == ON) {
-            alarmLed = ON;
-            tickLed = ON;
-            const char* currentTime = DateTimeNow();
-            printRain(currentTime);
-            accumulateRainfall();
-            delay(DELAY_BETWEEN_TICK);
+        if (isRaining()) {
+            actOnRainfall();
         } else {
             alarmLed = OFF;
             tickLed = OFF;
         }
-       if (hasTimePassedMinutesRTC(RAINFALL_CHECK_INTERVAL)) {
-            printAccumulatedRainfall();
-            rainfallCount = 0;
-        }
 
-        
+        if (hasTimePassedMinutesRTC(RAINFALL_CHECK_INTERVAL)) {
+            reportRainfall();
+        }
     }
+}
+
+// Sensores
+void initializeSensors() {
+    tickRain.mode(PullDown);
+    alarmLed = OFF;
+    tickLed = OFF;
+    set_time(TIME_INI); // Configurar la fecha y hora inicial
+}
+
+bool isRaining() {
+    return (tickRain == ON);
+}
+
+// Análisis de Datos
+void analyzeRainfall() {
+    const char* currentTime = DateTimeNow();
+    printRain(currentTime);
+    accumulateRainfall();
+    thread_sleep_for(DELAY_BETWEEN_TICK);
+}
+
+void accumulateRainfall() {
+    rainfallCount++;
+}
+
+bool hasTimePassedMinutesRTC(int minutes) {
+    static time_t lastTime = 0;
+    time_t currentTime = time(NULL);
+
+    if (difftime(currentTime, lastTime) >= minutes * 60) {
+        lastTime = currentTime;
+        return true;
+    }
+
+    return false;
+}
+
+// Actuación
+void actOnRainfall() {
+    alarmLed = ON;
+    analyzeRainfall();
+}
+
+void reportRainfall() {
+    tickLed = ON;
+    printAccumulatedRainfall();
+    rainfallCount = 0;
+}
+
+void printRain(const char* buffer) {
+    pc.write(buffer, strlen(buffer));
+    const char* message = " - Rain detected\r\n";
+    pc.write(message, strlen(message));
+}
+
+const char* DateTimeNow() {
+    time_t seconds = time(NULL);
+    static char bufferTime[80];
+    strftime(bufferTime, sizeof(bufferTime), "%Y-%m-%d %H:%M:%S", localtime(&seconds));
+    return bufferTime;
 }
 
 void printAccumulatedRainfall() {
@@ -71,65 +130,5 @@ void printAccumulatedRainfall() {
     int len = sprintf(buffer, "%s - Accumulated rainfall: %d.%02d mm\n", 
                       dateTime, rainfallInteger, rainfallDecimal);
     
-     pc.write(buffer, len);
-}
-
-void accumulateRainfall() {
-    time_t seconds = time(NULL);
-    struct tm* timeinfo = localtime(&seconds);
-    int currentMinute = timeinfo->tm_min;
-    
-    rainfallCount++;
-    
-    if (currentMinute != lastMinute) {
-        if (lastMinute != -1) {  // No imprimir en la primera iteración
-            printf("Rainfall in the last minute: %d ticks\n", rainfallCount);
-        }
-        rainfallCount = 0;
-        lastMinute = currentMinute;
-    }
-}
-
-// funcion que entrega la fecha y hora actual 
-const char* DateTimeNow() {
-    time_t seconds = time(NULL);
-    static char bufferTime[80];
-    strftime(bufferTime, sizeof(bufferTime), "%Y-%m-%d %H:%M:%S", localtime(&seconds));
-    return bufferTime;
-}
-
-// funcion que imprime cuando deteta una precipitacion 
-void printRain(const char* buffer) {
-    // Write the buffer content
-    pc.write(buffer, strlen(buffer));
-    // Write the rain detected message
-    const char* message = " - Rain detected\r\n";
-    pc.write(message, strlen(message));
-}
-
-
-bool hasTimePassedMinutesRTC(int minutes) {
-    static int lastMinute = -1;
-    static int minutesPassed = 0;
-
-    time_t seconds = time(NULL);
-    struct tm* timeinfo = localtime(&seconds);
-    int currentMinute = timeinfo->tm_min;
-
-    if (lastMinute == -1) {
-        lastMinute = currentMinute;
-        return false;
-    }
-
-    if (currentMinute != lastMinute) {
-        minutesPassed++;
-        lastMinute = currentMinute;
-
-        if (minutesPassed >= minutes) {
-            minutesPassed = 0;
-            return true;
-        }
-    }
-
-    return false;
+    pc.write(buffer, len);
 }
